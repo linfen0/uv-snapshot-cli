@@ -18,7 +18,7 @@ pip install .
 ## Usage
 
 ```bash
-env-snapshot BASE_TOML REQUIREMENTS_TXT [OPTIONS]
+New-EnvSnapshot BASE_TOML REQUIREMENTS_TXT [OPTIONS]
 ```
 
 ### Arguments
@@ -34,7 +34,7 @@ env-snapshot BASE_TOML REQUIREMENTS_TXT [OPTIONS]
 ### Example
 
 ```bash
-env-snapshot ./pyproject.toml ./requirements.txt -o my_snapshot.toml
+New-EnvSnapshot ./pyproject.toml ./requirements.txt -o my_snapshot.toml
 ```
 
 ## Development
