@@ -11,8 +11,16 @@ A command-line tool to snapshot your current Python environment dependencies int
 
 ## Installation
 
+Install using `uv tool` for global availability:
+
 ```bash
-pip install .
+uv tool install .
+```
+
+Or install into the current environment:
+
+```bash
+uv pip install .
 ```
 
 ## Usage
@@ -39,9 +47,15 @@ New-EnvSnapshot ./pyproject.toml ./requirements.txt -o my_snapshot.toml
 
 ## Development
 
-This project uses `hatch` as the build backend.
+This project uses `hatch` as the build backend and is fully compatible with `uv`.
 
 ```bash
+# Create a virtual environment with uv
+uv venv
+
+# Activate the environment (Windows)
+.venv\Scripts\activate
+
 # Install in editable mode
-pip install -e .
+uv pip install -e .
 ```
