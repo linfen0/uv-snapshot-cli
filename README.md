@@ -42,7 +42,7 @@ New-EnvSnapshot BASE_TOML REQUIREMENTS_TXT [OPTIONS]
 ### Example
 
 ```bash
-New-EnvSnapshot ./pyproject.toml ./requirements.txt -o my_snapshot.toml
+New-EnvSnapshot ./src/env_snapshot/base_pyproject.toml ./requirements.txt -o my_snapshot.toml
 ```
 
 ## Development
