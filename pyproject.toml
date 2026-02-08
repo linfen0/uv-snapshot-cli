@@ -15,6 +15,7 @@ dependencies = [
 
 [project.scripts]
 New-EnvSnapshot = "env_snapshot.cli:main"
+env-snapshot = "env_snapshot.cli:main"
 
 [build-system]
 requires = ["hatchling"]

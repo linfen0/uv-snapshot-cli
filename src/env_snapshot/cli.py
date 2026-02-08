@@ -7,8 +7,20 @@ from packaging.version import parse as parse_version
 from env_snapshot.core import create_snapshot
 
 @click.command()
-@click.argument("base_toml", type=click.Path(exists=True, dir_okay=False, path_type=Path))
-@click.argument("requirements", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option(
+    "--base-toml",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=Path(__file__).parent / "base_pyproject.toml",
+    help="Path to the base pyproject.toml file.",
+    show_default=True,
+)
+@click.option(
+    "--requirements",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default="requirements.txt",
+    help="Path to the requirements.txt file.",
+    show_default=True,
+)
 @click.option(
     "--output",
     "-o",
@@ -22,7 +34,7 @@ def main(base_toml: Path, requirements: Path, output: str) -> None:
 
     BASE_TOML: Path to the base pyproject.toml file.
     REQUIREMENTS: Path to the requirements.txt file.
-    """
+    """  
     try:
         snapshot_doc = create_snapshot(
             base_toml_path=str(base_toml),

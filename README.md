@@ -1,5 +1,7 @@
 # Env Snapshot Tool
 
+[中文](./README_zh.md) | English
+
 A command-line tool to snapshot your current Python environment dependencies into a UV-compatible `pyproject.toml` file.
 
 ## Features
@@ -26,24 +28,19 @@ uv pip install .
 ## Usage
 
 ```bash
-New-EnvSnapshot BASE_TOML REQUIREMENTS_TXT [OPTIONS]
+# Use default base.toml (bundled) and requirements.txt (current dir)
+env-snapshot
+
+# Specify custom files
+env-snapshot --base-toml ./custom_base.toml --requirements ./reqs.txt -o my_snapshot.toml
 ```
-
-### Arguments
-
-- `BASE_TOML`: Path to the base `pyproject.toml` file containing your project's static configuration.
-- `REQUIREMENTS_TXT`: Path to a `requirements.txt` file (if any).
 
 ### Options
 
+- `--base-toml PATH`: Path to the base `pyproject.toml` file. Defaults to bundled base.
+- `--requirements PATH`: Path to a `requirements.txt` file. Defaults to `requirements.txt`.
 - `-o, --output PATH`: Output file path. Defaults to `pyproject.snapshot.toml`.
 - `--help`: Show this message and exit.
-
-### Example
-
-```bash
-New-EnvSnapshot ./src/env_snapshot/base_pyproject.toml ./requirements.txt -o my_snapshot.toml
-```
 
 ## Development
 
