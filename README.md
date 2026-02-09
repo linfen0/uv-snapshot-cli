@@ -4,16 +4,18 @@
 
 A command-line tool to snapshot your current Python environment dependencies into a UV-compatible `pyproject.toml` file.
 
-## Features
+## Main Features
 
-- **Snapshots dependencies**: Captures installed packages and versions.
-- **Categorizes dependencies**: Splits packages into `project-dependencies` (from `pyproject.toml` or `requirements.txt`), `optional-dependencies`, and identifies `user-compiled` or `user-downloaded` packages.
-- **Resolves PyTorch URLs**: Automatically detects the installed PyTorch CUDA version and updates the `uv` index URL accordingly.
-- **UV Compatible**: Generates a `pyproject.toml` configured for use with [uv](https://github.com/astral-sh/uv).
+In complex environments like **ComfyUI** with numerous user plugins, a manually saved `uv.lock` often **mixes core dependencies with personal plugin dependencies**. It also tends to **lock platform-specific versions** (such as Windows-compiled binaries), preventing easy migration to other systems like Linux. This tool leverages `optional-dependencies` in `pyproject.toml` to achieve **automatic grouping** and **on-demand restoration**, improving the distribution experience for integrated bundles in such projects:
+
+- **🛡️ Dependency Isolation**: Automatically separates `requirements.txt` (core) from `uv pip install` (plugins) to keep environments clean.
+- **🔌 Dynamic Platform Adaptation**: Automatically populates Index URLs for libraries like PyTorch based on the currently installed version.
+- **📦 Compiled Dependency Isolation**: Locally compiled packages are grouped into `user-compiled` to maintain environment reproducibility.
+- **🚀 Flexible Restoration**: Restore only the core environment or include specific plugin groups, ensuring compatibility across different hardware platforms (Windows/Linux).
 
 ## Installation
 
-Install using `uv tool` for global availability:
+Install globally using `uv tool`:
 
 ```bash
 uv tool install .
@@ -27,24 +29,59 @@ uv pip install .
 
 ## Usage
 
-```bash
-# Use default base.toml (bundled) and requirements.txt (current dir)
-env-snapshot
+### 1. Create Environment Snapshot
 
-# Specify custom files
-env-snapshot --base-toml ./custom_base.toml --requirements ./reqs.txt -o my_snapshot.toml
+Run the following command to save the current environment state to `pyproject.snapshot.toml`:
+
+```bash
+New-EnvSnapshot -o pyproject.snapshot.toml
 ```
 
-### Options
+### 2. Restore Environment
 
-- `--base-toml PATH`: Path to the base `pyproject.toml` file. Defaults to bundled base.
-- `--requirements PATH`: Path to a `requirements.txt` file. Defaults to `requirements.txt`.
-- `-o, --output PATH`: Output file path. Defaults to `pyproject.snapshot.toml`.
-- `--help`: Show this message and exit.
+1. Rename the snapshot to `pyproject.toml`:
+   ```bash
+   mv pyproject.toml pyproject.origin.toml
+   mv pyproject.snapshot.toml pyproject.toml
+   ```
+2. Install dependencies using `uv`:
+
+#### Restore Core Dependencies Only (Core Only)
+Restore the environment to the dependencies defined in the original `requirements.txt`:
+```bash
+uv sync
+```
+
+#### Restore Core + User Plugins (Core + User Downloaded)
+1. Command format:
+   ```bash
+   uv pip install . [extra-group]
+   ```
+2. Restore core dependencies and additional plugins downloaded by the user:
+```bash
+uv pip install . --extra user-download
+```
+
+#### Full Restoration (All Dependencies)
+Install all groups, including locally compiled components:
+```bash
+uv pip install . --all-extras
+```
+
+### 3. Options
+
+```bash
+env-snapshot [OPTIONS]
+```
+
+- `--base-toml PATH`      : Path to the base `pyproject.toml` template (Default: Bundled)
+- `--requirements PATH`   : Path to `requirements.txt` (Default: `YOUR_WORK_DIR/requirements.txt`)
+- `-o, --output PATH`     : Path to the output snapshot file (Default: `YOUR_WORK_DIR/pyproject.snapshot.toml`)
+- `--help`                : Show help message
 
 ## Development
 
-This project uses `hatch` as the build backend and is fully compatible with `uv`.
+This project uses `hatch` as the build backend and is designed for the `uv` tool.
 
 ```bash
 # Create a virtual environment with uv
@@ -56,3 +93,4 @@ uv venv
 # Install in editable mode
 uv pip install -e .
 ```
+
