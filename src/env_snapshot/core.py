@@ -1,37 +1,34 @@
 # core_clean_readable_lib.py
 """
-env_snapshot.core 模块职责说明：
+env_snapshot.core Module Responsibility:
 
-本模块是 `env_snapshot` 的核心计算逻辑层，负责将当前 Python 环境的状态映射为
-标准的 `pyproject.toml` 依赖快照。
+This module is the core calculation logic of `env_snapshot`, responsible for mapping
+the current Python environment state to a standard `pyproject.toml` dependency snapshot.
 
-设计原则：
-1. **纯粹计算逻辑**：本模块只负责“输入环境信息 -> 输出 TOML 对象”的计算过程，不包含任何
-   文件写入（I/O）、网络请求或特定库的各种补丁逻辑。
-2. **通用性**：本模块不应包含针对特定包（如 torch）的特殊处理逻辑，所有包一视同仁。
-3. **不可变性**：输入数据（base_doc, installed）在计算过程中不应被修改，输出为全新的 TOML 对象。
+Design Principles:
+1. **Pure Calculation**: This module only handles "Input Environment info -> Output TOML object",
+   no filesystem I/O (except for reading base templates), no network, no patching.
+2. **Generality**: Treat all packages equally.
+3. **Immutability**: Input data is not modified.
 
-主要功能：
-- `collect_installed_packages`: 收集当前环境已安装的包信息。
-- `assign_package_groups`: 根据规则（base, requirements.txt, root deps）将包分配到对应的optional-dependencies中。
-- `build_uv_sections`: 推断并生成 uv 专属的 source 和 index 配置。
-- `render_snapshot`: 将包信息渲染到 tomlkit.TOMLDocument 对象中。
-- `create_snapshot`: 编排上述步骤的主流程函数，返回 `tomlkit.TOMLDocument` 对象。
+Main Functions:
+- `collect_installed_packages`: Collects installed package info from the TARGET environment using `uv pip list`.
+- `assign_package_groups`: Assigns packages to optional-dependencies based on rules.
+- `build_uv_sections`: Infers source/index config.
+- `render_snapshot`: Renders to tomlkit document.
+- `create_snapshot`: Main orchestration.
 """
 from __future__ import annotations
 
 import json
-
 import subprocess
-from importlib import metadata
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple, Any
 from urllib.parse import urlparse
 
 import tomlkit
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
-from packaging.version import parse as parse_version
 from pydantic import BaseModel, PrivateAttr, computed_field
 
 
@@ -79,6 +76,8 @@ def index_name_from_url(url: str) -> str:
 class Package(BaseModel):
     pkg_name: str
     version: str
+    url: Optional[str] = None
+    editable: bool = False
 
     group: Optional[str] = None
     tool_uv_sources_indexname: Optional[str] = None
@@ -87,9 +86,7 @@ class Package(BaseModel):
     @computed_field
     @property
     def install_sources(self) -> Optional[str]:
-        dist = metadata.distribution(self.pkg_name)
-        txt = dist.read_text("direct_url.json")
-        return json.loads(txt).get("url") if txt else None
+        return self.url
 
     def set_group(self, group: str, priority: int) -> None:
         if priority > self._group_priority:
@@ -102,16 +99,41 @@ class Package(BaseModel):
 # -------------------------------------------------
 
 def collect_installed_packages() -> Dict[str, Package]:
-    return {
-        pkg_key(d.metadata["Name"]): Package(
-            pkg_name=d.metadata["Name"],
-            version=d.version,
+    """
+    Uses `uv pip list --format json` to get installed packages from the TARGET environment.
+    This inspects the active environment (e.g. .venv) where the user is running the command,
+    NOT the isolated tool environment.
+    """
+    # Run uv pip list to get the target environment's packages
+    # This automatically respects usage context (e.g. active .venv)
+    out = subprocess.run(
+        ["uv", "pip", "list", "--format", "json"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+
+    data: List[Dict[str, Any]] = json.loads(out)
+    
+    packages = {}
+    for item in data:
+        # item structure from uv pip list --format json: 
+        # {"name": "...", "version": "...", "url": "...", "editable": bool, ...}
+        name = item.get("name", "")
+        if not name:
+            continue
+            
+        packages[pkg_key(name)] = Package(
+            pkg_name=name,
+            version=item.get("version", ""),
+            url=item.get("url"), # Direct URL (e.g. from direct_url.json)
+            editable=item.get("editable", False),
         )
-        for d in metadata.distributions()
-    }
+    return packages
 
 
 def get_uv_root_dependencies() -> List[str]:
+    # Use uv to find what user explicitly installed via `uv pip install`
     out = subprocess.run(
         ["uv", "pip", "tree", "--depth", "0"],
         capture_output=True,
@@ -128,9 +150,12 @@ def get_uv_root_dependencies() -> List[str]:
 
 
 def parse_requirements_file(path: str) -> List[str]:
+    if not Path(path).exists():
+        return []
+        
     return [
         requirement_name(line.strip())
-        for line in Path(path).read_text().splitlines()
+        for line in Path(path).read_text(encoding="utf-8").splitlines()
         if line.strip() and not line.startswith("#")
     ]
 
@@ -140,26 +165,23 @@ def parse_requirements_file(path: str) -> List[str]:
 # -------------------------------------------------
 
 def infer_group_from_environment(pkg: Package) -> Optional[str]:
-    dist = metadata.distribution(pkg.pkg_name)
-
-    if dist.read_text("PKG-INFO") and not dist.read_text("METADATA"):
+    # Check editable status from JSON output
+    if pkg.editable:
         return GROUP_USER_COMPILED
 
-    txt = dist.read_text("direct_url.json")
-    if not txt:
+    # Check source URL from JSON output
+    if not pkg.url:
         return None
 
-    obj = json.loads(txt)
-    url = obj.get("url", "")
-
-    if obj.get("dir_info", {}).get("editable"):
-        return GROUP_USER_COMPILED
-    if isinstance(obj.get("vcs_info"), dict):
-        return "other-vcs"
+    url = pkg.url
     if url.startswith("file://"):
         return GROUP_USER_COMPILED
+    
     if url.startswith(("http://", "https://")) and url.lower().endswith(".whl"):
         return GROUP_USER_DOWNLOAD
+        
+    if url.startswith("git+"):
+         return "other-vcs"
 
     return None
 
@@ -171,7 +193,11 @@ def assign_package_groups(
     root_dependencies: Iterable[str],
 ) -> None:
     def assign(name: str, group: str, priority: int) -> None:
-        installed[pkg_key(name)].set_group(group, priority)
+        key = pkg_key(name)
+        if key not in installed:
+             # Robustness check: requirement exists but package not found in target env
+             return
+        installed[key].set_group(group, priority)
 
     for name in root_dependencies:
         assign(name, GROUP_USER_DOWNLOAD, PRIORITY_ROOT_DEPENDENCY)
@@ -198,7 +224,9 @@ def assign_package_groups(
 
 def assign_uv_index_info(installed: Dict[str, Package], base_doc) -> None:
     for pkg_name, spec in base_doc["tool"]["uv"]["sources"].items():
-        installed[pkg_key(pkg_name)].tool_uv_sources_indexname = spec["index"]
+        key = pkg_key(pkg_name)
+        if key in installed:
+            installed[key].tool_uv_sources_indexname = spec["index"]
 
     for pkg in installed.values():
         if pkg.tool_uv_sources_indexname is None and pkg.install_sources:
@@ -210,25 +238,21 @@ def build_uv_sections(
     base_doc,
     keep_keys: Iterable[str],
 ) -> Tuple[dict, list]:
-    # 1. Collect inferred package-to-index mappings from environment
     inferred_sources = {
         installed[k].pkg_name: {"index": installed[k].tool_uv_sources_indexname}
         for k in keep_keys
         if installed[k].tool_uv_sources_indexname
     }
 
-    # 2. Collect inferred URLs for those index names
     inferred_urls = {
         installed[k].tool_uv_sources_indexname: installed[k].install_sources
         for k in keep_keys
         if installed[k].tool_uv_sources_indexname and installed[k].install_sources
     }
 
-    # 3. Process the base indices from pyproject.toml
     merged_indices = [dict(x) for x in base_doc["tool"]["uv"]["index"]]
     declared_names = {x["name"] for x in merged_indices if "name" in x}
 
-    # 4. Check for missing indices required by our inferred sources
     required_names = {v["index"] for v in inferred_sources.values()}
     for name in required_names:
         if name not in declared_names:
@@ -275,7 +299,7 @@ def create_snapshot(
     base_toml_path: str,
     requirements_path: str,
 ) -> tomlkit.TOMLDocument:
-    base_doc = tomlkit.parse(Path(base_toml_path).read_text())
+    base_doc = tomlkit.parse(Path(base_toml_path).read_text(encoding="utf-8"))
 
     installed = collect_installed_packages()
     requirements = parse_requirements_file(requirements_path)

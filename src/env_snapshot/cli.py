@@ -55,23 +55,33 @@ def main(base_toml: Path, requirements: Path, output: str) -> None:
 def update_torch_index_url(base_doc: tomlkit.TOMLDocument) -> None:
     """
     Update the PyTorch index URL in the snapshot if a placeholder is present.
-    Uses importlib.metadata and packaging.version to extract the local version (e.g. +cu121).
+    Uses the robust collect_installed_packages to get the version from the target environment.
     """
     try:
-        version_str = metadata.version("torch")
-    except metadata.PackageNotFoundError:
-        return
-    version = parse_version(version_str)
-    
-    if not version.local:
-        return
+        from env_snapshot.core import collect_installed_packages, pkg_key
+        installed = collect_installed_packages()
+        torch_pkg = installed.get(pkg_key("torch"))
         
-    new_url = f"https://download.pytorch.org/whl/{version.local}"
-    # 将 basedoc 中包含 XXX 的 url 替换为 new_url
-    base_doc["tool"]["uv"]["index"] = [
-        {**index, "url": new_url} if "XXX" in index.get("url", "") else index
-        for index in base_doc["tool"]["uv"].get("index", [])
-    ]
+        if not torch_pkg:
+            return
+
+        version = parse_version(torch_pkg.version)
+        
+        if not version.local:
+            return
+            
+        new_url = f"https://download.pytorch.org/whl/{version.local}"
+        
+        # Replace XXX in index URLs
+        if "tool" in base_doc and "uv" in base_doc["tool"]:
+            base_doc["tool"]["uv"]["index"] = [
+                {**index, "url": new_url} if "XXX" in index.get("url", "") else index
+                for index in base_doc["tool"]["uv"].get("index", [])
+            ]
+    except Exception as e:
+        # Avoid crashing if optional patching fails
+        import logging
+        logging.warning(f"Failed to update torch index url: {e}")
 
 
 def save_snapshot_to_file(
