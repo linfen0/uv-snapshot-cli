@@ -6,7 +6,7 @@ A command-line tool to snapshot your current Python environment dependencies int
 
 ## Main Features
 
-In complex environments like **ComfyUI** with numerous user plugins, a manually saved `uv.lock` often **mixes core dependencies with personal plugin dependencies**. It also tends to **lock platform-specific versions** (such as Windows-compiled binaries), preventing easy migration to other systems like Linux. This tool leverages `optional-dependencies` in `pyproject.toml` to achieve **automatic grouping** and **on-demand restoration**, improving the distribution experience for integrated bundles in such projects:
+For complex projects like **ComfyUI** that heavily rely on plugins, the standard `uv.lock` mechanism often **mixes core component dependencies with user plugin dependencies**. It also tends to **lock platform-specific binary versions** (e.g., Windows pre-built packages), making it difficult to reproduce the environment on other systems like Linux. This tool leverages the `optional-dependencies` feature of `pyproject.toml` to achieve **automatic layering** and **on-demand restoration**, significantly improving the distribution experience for cross-platform integration bundles:
 
 - **🛡️ Dependency Isolation**: Automatically separates `requirements.txt` (core) from `uv pip install` (plugins) to keep environments clean.
 - **🔌 Dynamic Platform Adaptation**: Automatically populates Index URLs for libraries like PyTorch based on the currently installed version.

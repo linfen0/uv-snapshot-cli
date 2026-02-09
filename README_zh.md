@@ -5,7 +5,7 @@
 一个命令行工具，用于将当前 Python 环境依赖项快照到兼容 UV 的 `pyproject.toml` 文件中。
 ## 主要功能
 
-在 **ComfyUI** 这类包含大量用户插件的环境中，手动使用uv保存的 `uv.lock` 会**混杂核心组件的依赖与个人插件的依赖**，且容易**锁定仅适用于当前平台的特定版本**（如 Windows 编译版），导致环境无法迁移到 Linux 等其他系统。本工具通过 `pyproject.toml` 的 `optional-dependencies` 实现了依赖的**自动分组**与**按需恢复**，提升此类项目的整合包分发体验：
+对于 **ComfyUI** 这样依赖插件的项目，常规的 `uv.lock` 机制往往会将**核心组件与用户插件的依赖混杂在一起**，且容易**锁定特定平台的二进制版本**（如 Windows 编译包），导致环境无法在 Linux 等其他系统上复现。本工具利用 `pyproject.toml` 的 `optional-dependencies` 特性，实现了依赖的**自动分层**与**按需还原**，以提升了跨平台整合包的分发体验：
 
 - **🛡️ 核心依赖与插件依赖隔离**：自动分离 `requirements.txt`（核心依赖）与 `uv pip install`（插件依赖），避免环境臃肿。
 - **🔌 动态平台适配**：按当前环境下载的pytorch自动填充 PyTorch 等库的 Index URL。
