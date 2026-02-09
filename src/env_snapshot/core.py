@@ -287,7 +287,12 @@ def render_snapshot(
         else:
             base_doc["project"]["optional-dependencies"].setdefault(pkg.group, []).append(pinned)
 
-    base_doc["tool"]["uv"]["sources"] = inferred_sources
+    # Create tomlkit inline table for better readability
+    # e.g. torch = { index = "pytorch-cuda" }
+    sources_table = tomlkit.inline_table()
+    sources_table.update(inferred_sources)
+    base_doc["tool"]["uv"]["sources"] = sources_table
+
     base_doc["tool"]["uv"]["index"] = merged_indices
 
 
